@@ -177,6 +177,21 @@ local function addLockZone(zoneName, lockCoords, label, action)
     goodsTargetZones[#goodsTargetZones + 1] = zoneName
 end
 
+-- Seal target uses lock-sized zone positioned at the container (door area)
+local function addContainerSealZone(zoneName, containerCoords, label, action)
+    if goodsZoneExists(zoneName) then return end
+    local min, max = GetModelDimensions(joaat(Config.props.lock))
+    local dim      = max - min
+    exports["qb-target"]:AddBoxZone(zoneName, containerCoords.xyz, dim.y, dim.x, {
+        name = zoneName, heading = containerCoords.w, debugPoly = false,
+        minZ = containerCoords.z - dim.z / 2, maxZ = containerCoords.z + dim.z / 2,
+    }, {
+        options  = {{ icon = "fa-solid fa-lock", label = label, action = action }},
+        distance = 2.0,
+    })
+    goodsTargetZones[#goodsTargetZones + 1] = zoneName
+end
+
 local function addCrateZone(zoneName, crateCoords, label, icon, action)
     if goodsZoneExists(zoneName) then return end
     local min, max = GetModelDimensions(joaat(Config.props.crate))
@@ -380,9 +395,9 @@ RegisterNetEvent("sf_blackmarket_cl:goodsBeginLoad", function(listingId)
     end)
 end)
 
--- ── Phase 3: "Seal Container" on crate – seller only ─────────────────────────
-RegisterNetEvent("sf_blackmarket_cl:addGoodsSealTarget", function(listingId, crateCoords)
-    addCrateZone("bm_goods_seal_" .. listingId, crateCoords, "Seal Container", "fa-solid fa-lock",
+-- ── Phase 3: "Seal Container" on container doors – seller only ───────────────
+RegisterNetEvent("sf_blackmarket_cl:addGoodsSealTarget", function(listingId, containerCoords)
+    addContainerSealZone("bm_goods_seal_" .. listingId, containerCoords, "Seal Container",
         function() TriggerServerEvent("sf_blackmarket_sv:attemptSealGoods", listingId) end)
 end)
 
@@ -405,6 +420,14 @@ RegisterNetEvent("sf_blackmarket_cl:goodsBeginSeal", function(listingId)
         TriggerServerEvent("sf_blackmarket_sv:cancelSealGoods", listingId)
         QBCore.Functions.Notify("Cancelled", "error")
     end)
+end)
+
+-- Broadcast: stop the open animation so the container visually closes after sealing
+RegisterNetEvent("sf_blackmarket_cl:closeGoodsContainer", function(listingId, containerNetId)
+    local container = NetworkGetEntityFromNetworkId(containerNetId)
+    if DoesEntityExist(container) then
+        StopEntityAnim(container, Config.containerAnim.container, Config.containerAnim.dict, 4.0)
+    end
 end)
 
 -- ── Phase 4: "Open Container" on crate – broadcast to all ────────────────────

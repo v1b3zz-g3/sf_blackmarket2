@@ -724,14 +724,14 @@ local function restoreGoodsPhaseForAll(gc, listingId)
         end
 
     elseif gc.sellerOpen and gc.itemsLoaded and not gc.sealed then
-        -- Phase 3: items loaded, awaiting seal → "Seal Container" for seller only
+        -- Phase 3: items loaded, awaiting seal → "Seal Container" on container doors for seller only
         TriggerClientEvent("sf_blackmarket_cl:updateGoodsContainerOpen", -1, listingId, gc.props.container, gc.props.collision)
-        local crateEnt    = NetworkGetEntityFromNetworkId(gc.props.crate)
-        local crateCoords = vec4(GetEntityCoords(crateEnt), GetEntityHeading(crateEnt))
+        local containerEnt    = NetworkGetEntityFromNetworkId(gc.props.container)
+        local containerCoords = vec4(GetEntityCoords(containerEnt), GetEntityHeading(containerEnt))
         for _, pSrc in ipairs(GetPlayers()) do
             local p = QBCore.Functions.GetPlayer(tonumber(pSrc))
             if p and p.PlayerData.citizenid == gc.sellerCid then
-                TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", p.PlayerData.source, listingId, crateCoords)
+                TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", p.PlayerData.source, listingId, containerCoords)
                 break
             end
         end
@@ -870,12 +870,12 @@ RegisterNetEvent("sf_blackmarket_sv:goodsLoadComplete", function(listingId)
     gc.sellerLoadInProgress = false
     updateListingDB(listingId, { items_loaded = 1 })
 
-    -- Remove deposit target; add seal target for seller only
+    -- Remove deposit target; add seal target on container doors for seller only
     TriggerClientEvent("sf_blackmarket_cl:removeGoodsLoadTarget", src, listingId)
 
-    local crateEnt    = NetworkGetEntityFromNetworkId(gc.props.crate)
-    local crateCoords = vec4(GetEntityCoords(crateEnt), GetEntityHeading(crateEnt))
-    TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", src, listingId, crateCoords)
+    local containerEnt    = NetworkGetEntityFromNetworkId(gc.props.container)
+    local containerCoords = vec4(GetEntityCoords(containerEnt), GetEntityHeading(containerEnt))
+    TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", src, listingId, containerCoords)
 
     TriggerClientEvent('QBCore:Notify', src, "Items deposited. Now seal the container.", "success")
 end)
@@ -909,7 +909,7 @@ RegisterNetEvent("sf_blackmarket_sv:attemptSealGoods", function(listingId)
     TriggerClientEvent("sf_blackmarket_cl:goodsBeginSeal", src, listingId)
 end)
 
--- Step 5b: Seller's seal progress bar completed → pay seller, broadcast loot target to all
+-- Step 5b: Seller's seal progress bar completed → pay seller, close container, broadcast loot target
 RegisterNetEvent("sf_blackmarket_sv:goodsSealComplete", function(listingId)
     local src = source
     local gc  = goodsContainers[listingId]
@@ -928,9 +928,13 @@ RegisterNetEvent("sf_blackmarket_sv:goodsSealComplete", function(listingId)
 
     TriggerClientEvent('QBCore:Notify', src, Config.notifText.listingSealed, "success")
 
-    -- Remove seal target from seller; add loot target for ALL players
+    -- Remove seal target from seller
     TriggerClientEvent("sf_blackmarket_cl:removeGoodsSealTarget", src, listingId)
 
+    -- Close (re-shut) the container visually for all players
+    TriggerClientEvent("sf_blackmarket_cl:closeGoodsContainer", -1, listingId, gc.props.container)
+
+    -- Add loot target on crate for ALL players
     local crateEnt    = NetworkGetEntityFromNetworkId(gc.props.crate)
     local crateCoords = vec4(GetEntityCoords(crateEnt), GetEntityHeading(crateEnt))
     TriggerClientEvent("sf_blackmarket_cl:addGoodsLootTarget", -1, listingId, crateCoords)
@@ -1088,12 +1092,12 @@ local function initPlayerOrders(src)
                 end
 
             elseif gc.sellerOpen and gc.itemsLoaded and not gc.sealed then
-                -- Phase 3: items deposited, awaiting seal
+                -- Phase 3: items deposited, awaiting seal on container doors
                 TriggerClientEvent("sf_blackmarket_cl:updateGoodsContainerOpen", src, lid, gc.props.container, gc.props.collision)
                 if cid == gc.sellerCid then
-                    local crateEnt    = NetworkGetEntityFromNetworkId(gc.props.crate)
-                    local crateCoords = vec4(GetEntityCoords(crateEnt), GetEntityHeading(crateEnt))
-                    TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", src, lid, crateCoords)
+                    local containerEnt    = NetworkGetEntityFromNetworkId(gc.props.container)
+                    local containerCoords = vec4(GetEntityCoords(containerEnt), GetEntityHeading(containerEnt))
+                    TriggerClientEvent("sf_blackmarket_cl:addGoodsSealTarget", src, lid, containerCoords)
                 end
 
             elseif gc.sealed then
